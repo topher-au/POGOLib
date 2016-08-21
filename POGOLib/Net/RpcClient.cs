@@ -22,7 +22,6 @@ namespace POGOLib.Net
 {
     public class RpcClient : IDisposable
     {
-
         /// <summary>
         ///     The <see cref="HttpClient" /> used for communication with PokémonGo.
         /// </summary>
@@ -50,7 +49,7 @@ namespace POGOLib.Net
 
         internal RpcClient(Session session)
         {
-			LastGeoCoordinateMapObjectsRequest = new GeoCoordinate ();
+            LastGeoCoordinateMapObjectsRequest = new GeoCoordinate();
             _session = session;
             _rpcEncryption = new RpcEncryption(session);
 
@@ -79,42 +78,45 @@ namespace POGOLib.Net
             try
             {
                 // Send GetPlayer to check if we're connected and authenticated
-				var playerAttempts = 0;
+                var playerAttempts = 0;
                 GetPlayerResponse playerResponse;
-				while (true)
+                while (true)
                 {
-					if(playerAttempts > 3) { 
-						Logger.Error("No response received, giving up.");
-						return false;
-					}
+                    if (playerAttempts > 3)
+                    {
+                        Logger.Error("No response received, giving up.");
+                        return false;
+                    }
 
                     var response = SendRemoteProcedureCall(new Request
                     {
                         RequestType = RequestType.GetPlayer
                     });
-						
+
                     playerResponse = GetPlayerResponse.Parser.ParseFrom(response);
-					var responseTimer = 0;
-					while (true)
+                    var responseTimer = 0;
+                    while (true)
                     {
-						if(playerResponse.Success) break;
-						if(responseTimer >= Configuration.StartupTimeout) {
-							Logger.Warn("No response to GetPlayer after {0}ms!", Configuration.StartupTimeout);
-							break;
-						}
+                        if (playerResponse.Success) break;
+                        if (responseTimer >= Configuration.StartupTimeout)
+                        {
+                            Logger.Warn("No response to GetPlayer after {0}ms!", Configuration.StartupTimeout);
+                            break;
+                        }
                         Thread.Sleep(1);
-						responseTimer++;
+                        responseTimer++;
                     }
-					playerAttempts++;
+                    playerAttempts++;
 
-					if(!playerResponse.Success) {
-						Logger.Warn("Trying again...");
-						continue;
-					}
-					break;
-				}
+                    if (!playerResponse.Success)
+                    {
+                        Logger.Warn("Trying again...");
+                        continue;
+                    }
+                    break;
+                }
 
-				_session.Player.Data = playerResponse.PlayerData;
+                _session.Player.Data = playerResponse.PlayerData;
 
                 // Get DownloadRemoteConfig
                 var remoteConfigResponse = SendRemoteProcedureCall(new Request
@@ -129,7 +131,7 @@ namespace POGOLib.Net
                 var remoteConfigParsed = DownloadRemoteConfigVersionResponse.Parser.ParseFrom(remoteConfigResponse);
 
                 var timestamp = (ulong) TimeUtil.GetCurrentTimestampInMilliseconds();
-				_session.Templates.LoadTemplates();
+                _session.Templates.LoadTemplates();
                 if (_session.Templates.AssetDigests == null || remoteConfigParsed.AssetDigestTimestampMs > timestamp)
                 {
                     // GetAssetDigest
@@ -158,7 +160,7 @@ namespace POGOLib.Net
             }
             catch (Exception ex)
             {
-				Logger.Error ("RPC Client encountered an exception during startup: {0}", ex.Message);
+                Logger.Error("RPC Client encountered an exception during startup: {0}", ex.Message);
                 return false;
             }
 
@@ -201,11 +203,12 @@ namespace POGOLib.Net
 
             if (mapObjects.Status == MapObjectsStatus.Success)
             {
-				var recvCell = mapObjects.MapCells.Count;
-				var recvPoke = mapObjects.MapCells.SelectMany (c => c.CatchablePokemons).Count ();
-				var recvFort = mapObjects.MapCells.SelectMany (c => c.Forts).Count ();
-				Logger.Debug ("Received {0} map cells, {1} pokemon, {2} forts", recvCell.ToString(), recvPoke.ToString(), recvFort.ToString());
-				if (mapObjects.MapCells.Count == 0)
+                var recvCell = mapObjects.MapCells.Count;
+                var recvPoke = mapObjects.MapCells.SelectMany(c => c.CatchablePokemons).Count();
+                var recvFort = mapObjects.MapCells.SelectMany(c => c.Forts).Count();
+                Logger.Debug("Received {0} map cells, {1} pokemon, {2} forts", recvCell.ToString(), recvPoke.ToString(),
+                    recvFort.ToString());
+                if (mapObjects.MapCells.Count == 0)
                 {
                     Logger.Error("We received 0 map cells, are your GPS coordinates correct?");
                     return;
@@ -214,7 +217,7 @@ namespace POGOLib.Net
             }
             else
             {
-				Logger.Error("GetMapObjects status is: '{0}'.", mapObjects.Status);
+                Logger.Error("GetMapObjects status is: '{0}'.", mapObjects.Status);
             }
         }
 
@@ -355,16 +358,25 @@ namespace POGOLib.Net
             });
         }
 
+        private DateTime _lastCall = DateTime.Now;
+
         public ByteString SendRemoteProcedureCall(Request request)
         {
-			// Sleep to prevent frequent throttling TODO: add a better call frequency check
-			Thread.Sleep (500);
+            // Sleep to prevent server-side throttling
+            while (_lastCall > DateTime.Now - TimeSpan.FromMilliseconds(500))
+            {
+                Thread.Sleep(100);
+            }
+            
             var requestEnvelope = GetRequestEnvelope(request);
 
             using (var requestData = PrepareRequestEnvelope(requestEnvelope))
             {
                 using (var response = _httpClient.PostAsync(_requestUrl ?? Constants.ApiUrl, requestData).Result)
                 {
+                    // Set timestamp of last RPC call
+                    _lastCall = DateTime.Now;
+
                     if (!response.IsSuccessStatusCode)
                     {
                         Logger.Debug(response.Content.ReadAsStringAsync().Result);
@@ -377,47 +389,43 @@ namespace POGOLib.Net
 
                     switch (responseEnvelope.StatusCode)
                     {
-                        case 1:
-                            // Success!?
+                        case 1: // Success
                             break;
 
-						case 2:
-							// Unknown status code
-						Logger.Warn("Received status code 2 (unknown)");
-							break;
+                        case 3: // Account banned
+                            Logger.Warn("Received status code 3: Account possibly permabanned.");
+                            break;
 
-						case 3:
-							// Account banned
-							Logger.Warn("Received status code 3, account possibly permabanned.");
-							break;
-
-                        case 52: // Slow servers? TODO: Throttling (?)
-						Logger.Warn("We are sending requests too fast, sleeping for {0} milliseconds.", Configuration.SlowServerTimeout.ToString());
+                        case 52: // Server throttled request
+                            Logger.Warn("Received status code 52: Connection throttled, sleeping for {0} ms",
+                                Configuration.SlowServerTimeout.ToString());
                             Thread.Sleep(Configuration.SlowServerTimeout);
                             return SendRemoteProcedureCall(request);
 
-                        case 53: // New RPC url
+                        case 53: // Redirect RPC URL
                             if (Regex.IsMatch(responseEnvelope.ApiUrl, "pgorelease\\.nianticlabs\\.com\\/plfe\\/\\d+"))
                             {
-							_requestUrl = string.Format("https://{0}/rpc", responseEnvelope.ApiUrl);
+                                _requestUrl = string.Format("https://{0}/rpc", responseEnvelope.ApiUrl);
                                 return SendRemoteProcedureCall(request);
                             }
                             throw new Exception(
-							string.Format("Received an incorrect API url: '{0}', status code was: '{1}'.", responseEnvelope.ApiUrl, responseEnvelope.StatusCode));
+                                string.Format("Received an incorrect API url: '{0}', status code was: '{1}'.",
+                                    responseEnvelope.ApiUrl, responseEnvelope.StatusCode));
 
-                        case 102: // Invalid auth
-                            Logger.Debug("Received StatusCode 102, reauthenticating.");
+                        case 102: // Invalid authentication ticket
+                            Logger.Debug("Received status code 102: Reauthenticating.");
                             _session.AccessToken.Expire();
                             _session.Reauthenticate();
                             return SendRemoteProcedureCall(request);
 
-                        default:
-						Logger.Info("Unknown status code: {0}", responseEnvelope.StatusCode.ToString());
+                        default: // Unknown status code
+                            Logger.Info("Received unknown status code: {0}",
+                                responseEnvelope.StatusCode.ToString());
                             break;
                     }
 
                     LastRpcRequest = DateTime.UtcNow;
-					Logger.Debug("Sent RPC Request: '{0}'", request.RequestType.ToString());
+                    Logger.Debug("Sent RPC Request: '{0}'", request.RequestType.ToString());
                     if (request.RequestType == RequestType.GetMapObjects)
                     {
                         LastRpcMapObjectsRequest = LastRpcRequest;
@@ -446,7 +454,8 @@ namespace POGOLib.Net
         {
             if (responseEnvelope.Returns.Count != 5)
             {
-				throw new Exception(string.Format("There were only {0} responses, we expected 5.", responseEnvelope.Returns.Count));
+                throw new Exception(string.Format("There were only {0} responses, we expected 5.",
+                    responseEnvelope.Returns.Count));
             }
 
             // Take requested response and remove from returns.
@@ -490,9 +499,9 @@ namespace POGOLib.Net
             if (pokemonId > 0)
             {
                 var pokemons = _session.Player.Inventory.InventoryItems.Where(
-					i => i.InventoryItemData != null &&
-                        i.InventoryItemData.PokemonData != null &&
-                        i.InventoryItemData.PokemonData.Id.Equals(pokemonId));
+                    i => i.InventoryItemData != null &&
+                         i.InventoryItemData.PokemonData != null &&
+                         i.InventoryItemData.PokemonData.Id.Equals(pokemonId));
                 _session.Player.Inventory.RemoveInventoryItems(pokemons);
             }
         }
@@ -562,12 +571,12 @@ namespace POGOLib.Net
                         }
                         else
                         {
-						Logger.Debug("DownloadSettingsResponse.Error: '{0}'", downloadSettings.Error);
+                            Logger.Debug("DownloadSettingsResponse.Error: '{0}'", downloadSettings.Error);
                         }
                         break;
 
                     default:
-					throw new Exception(string.Format("Unknown response appeared..? {0}", responseCount));
+                        throw new Exception(string.Format("Unknown response appeared..? {0}", responseCount));
                 }
 
                 responseCount++;
@@ -584,8 +593,8 @@ namespace POGOLib.Net
         {
             if (disposing)
             {
-				if(_httpClient != null)
-                	_httpClient.Dispose();
+                if (_httpClient != null)
+                    _httpClient.Dispose();
             }
         }
     }
