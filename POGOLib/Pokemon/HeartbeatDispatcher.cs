@@ -46,7 +46,7 @@ namespace POGOLib.Pokemon
                     }
                     else if (secondsSinceLast >= minSeconds)
                     {
-                        var metersMoved = _session.Player.Coordinate.GetDistanceTo(lastGeoCoordinate);
+                        var metersMoved = _session.Player.Location.GetDistanceTo(lastGeoCoordinate);
                         if (secondsSinceLast >= maxSeconds)
                         {
 							Logger.Debug("Refreshing MapObjects, reason: 'secondsSinceLast({0}) >= maxSeconds({1})'.", secondsSinceLast.ToString(), maxSeconds.ToString());

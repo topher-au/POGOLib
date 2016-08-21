@@ -83,9 +83,9 @@ namespace POGOLib.Net
                     {
                         Provider = "network",
                         //Unk4 = 120,
-                        Latitude = (float)_session.Player.Coordinate.Latitude,
-                        Longitude = (float)_session.Player.Coordinate.Longitude,
-                        Altitude = (float)_session.Player.Coordinate.Altitude,
+                        Latitude = (float)_session.Player.Location.Latitude,
+                        Longitude = (float)_session.Player.Location.Longitude,
+                        Altitude = (float)_session.Player.Location.Altitude,
                         TimestampSnapshot = (ulong)_internalStopwatch.ElapsedMilliseconds - 200,
                         Floor = 3,
                         LocationType = 1
@@ -96,9 +96,9 @@ namespace POGOLib.Net
             // Compute 10
             var serializedTicket = requestEnvelope.AuthTicket != null ? requestEnvelope.AuthTicket.ToByteArray() : requestEnvelope.AuthInfo.ToByteArray();
             var firstHash = CalculateHash32(serializedTicket, 0x1B845238);
-            var locationBytes = BitConverter.GetBytes(_session.Player.Coordinate.Latitude).Reverse()
-                .Concat(BitConverter.GetBytes(_session.Player.Coordinate.Longitude).Reverse())
-                .Concat(BitConverter.GetBytes(_session.Player.Coordinate.Altitude).Reverse()).ToArray();
+            var locationBytes = BitConverter.GetBytes(_session.Player.Location.Latitude).Reverse()
+                .Concat(BitConverter.GetBytes(_session.Player.Location.Longitude).Reverse())
+                .Concat(BitConverter.GetBytes(_session.Player.Location.Altitude).Reverse()).ToArray();
             signature.LocationHash1 = CalculateHash32(locationBytes, firstHash);
             // Compute 20
             signature.LocationHash2 = CalculateHash32(locationBytes, 0x1B845238);

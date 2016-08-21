@@ -56,8 +56,8 @@ namespace POGOLib.Pokemon
                 var f1Coordinate = new GeoCoordinate(f1.Latitude, f1.Longitude);
                 var f2Coordinate = new GeoCoordinate(f2.Latitude, f2.Longitude);
 
-                var distance1 = f1Coordinate.GetDistanceTo(_session.Player.Coordinate);
-                var distance2 = f2Coordinate.GetDistanceTo(_session.Player.Coordinate);
+                var distance1 = f1Coordinate.GetDistanceTo(_session.Player.Location);
+                var distance2 = f2Coordinate.GetDistanceTo(_session.Player.Location);
 
                 return distance1.CompareTo(distance2);
             });

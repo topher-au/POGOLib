@@ -170,8 +170,8 @@ namespace POGOLib.Net
         /// </summary>
         public void RefreshMapObjects()
         {
-            var cellIds = MapUtil.GetCellIdsForLatLong(_session.Player.Coordinate.Latitude,
-                _session.Player.Coordinate.Longitude);
+            var cellIds = MapUtil.GetCellIdsForLatLong(_session.Player.Location.Latitude,
+                _session.Player.Location.Longitude);
             var sinceTimeMs = new List<long>(cellIds.Length);
 
             for (var i = 0; i < cellIds.Length; i++)
@@ -192,8 +192,8 @@ namespace POGOLib.Net
                     {
                         sinceTimeMs.ToArray()
                     },
-                    Latitude = _session.Player.Coordinate.Latitude,
-                    Longitude = _session.Player.Coordinate.Longitude
+                    Latitude = _session.Player.Location.Latitude,
+                    Longitude = _session.Player.Location.Longitude
                 }.ToByteString()
             });
 
@@ -299,9 +299,9 @@ namespace POGOLib.Net
             {
                 StatusCode = 2,
                 RequestId = GetNextRequestId(),
-                Latitude = _session.Player.Coordinate.Latitude,
-                Longitude = _session.Player.Coordinate.Longitude,
-                Altitude = _session.Player.Coordinate.Altitude,
+                Latitude = _session.Player.Location.Latitude,
+                Longitude = _session.Player.Location.Longitude,
+                Altitude = _session.Player.Location.Altitude,
                 Unknown12 = 123, // TODO: Figure this out.
                 Requests = {GetDefaultRequests()}
             };
@@ -421,7 +421,7 @@ namespace POGOLib.Net
                     if (request.RequestType == RequestType.GetMapObjects)
                     {
                         LastRpcMapObjectsRequest = LastRpcRequest;
-                        LastGeoCoordinateMapObjectsRequest = _session.Player.Coordinate;
+                        LastGeoCoordinateMapObjectsRequest = _session.Player.Location;
                     }
                     if (responseEnvelope.AuthTicket != null)
                     {
